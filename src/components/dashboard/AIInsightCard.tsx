@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Sparkles, AlertCircle } from "lucide-react";
 
 export default function AIInsightCard() {
@@ -36,12 +37,13 @@ export default function AIInsightCard() {
             SOW, and client confirmation before requesting payment.
           </p>
           <div className="mt-3 flex gap-2">
-            <button
+            <Link
               id="ai-insight-prepare"
-              className="text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+              href="/payments/analysis"
+              className="text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center"
             >
               Prepare now
-            </button>
+            </Link>
             <button
               id="ai-insight-dismiss"
               className="text-xs font-medium text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"

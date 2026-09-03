@@ -114,7 +114,16 @@ export default function NewPaymentPage() {
     // Store form data in sessionStorage for the analysis page
     sessionStorage.setItem("paymentshield_payment", JSON.stringify(form));
 
-    router.push("/payments/analysis");
+    const params = new URLSearchParams();
+    if (form.clientName) params.set("client", form.clientName);
+    if (form.amount) params.set("amount", form.amount);
+    if (form.serviceType) params.set("service", form.serviceType);
+    if (form.purpose) params.set("purpose", form.purpose);
+    if (form.paymentType) params.set("paymentType", form.paymentType);
+    if (form.clientEmail) params.set("email", form.clientEmail);
+    if (form.paymentDate) params.set("date", form.paymentDate);
+
+    router.push(`/payments/analysis?${params.toString()}`);
   }
 
   return (

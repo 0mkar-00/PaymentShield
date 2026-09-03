@@ -1,8 +1,9 @@
+import Link from "next/link";
 import Sidebar from "@/components/layout/Sidebar";
 import SummaryCards from "@/components/dashboard/SummaryCards";
 import PaymentsTable from "@/components/dashboard/PaymentsTable";
 import AIInsightCard from "@/components/dashboard/AIInsightCard";
-import { Bell } from "lucide-react";
+import { Bell, Plus } from "lucide-react";
 
 export const metadata = {
   title: "Dashboard — PaymentShield",
@@ -40,14 +41,26 @@ export default function DashboardPage() {
 
         {/* Page content */}
         <div className="px-8 py-8 space-y-8 max-w-6xl">
-          {/* Greeting */}
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Good afternoon 👋
-            </h1>
-            <p className="text-slate-500 text-sm mt-1">
-              Stay prepared for your next payment.
-            </p>
+          {/* Greeting & Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                Good afternoon 👋
+              </h1>
+              <p className="text-slate-500 text-sm mt-1">
+                Stay prepared for your next payment.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Link
+                id="btn-check-payment"
+                href="/payments/new"
+                className="inline-flex items-center gap-2 bg-blue-800 text-white text-xs font-semibold px-4 py-2.5 rounded-lg hover:bg-blue-900 transition-colors shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Check a Payment
+              </Link>
+            </div>
           </div>
 
           {/* Summary cards */}

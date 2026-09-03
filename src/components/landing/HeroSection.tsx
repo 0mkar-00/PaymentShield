@@ -27,7 +27,7 @@ export default function HeroSection() {
           {/* CTAs */}
           <div className="flex flex-wrap items-center gap-4">
             <Link
-              href="/dashboard"
+              href="/payments/new"
               id="cta-check-payment"
               className="inline-flex items-center gap-2 bg-blue-800 text-white font-medium text-sm px-6 py-3 rounded-lg hover:bg-blue-900 transition-colors shadow-sm"
             >

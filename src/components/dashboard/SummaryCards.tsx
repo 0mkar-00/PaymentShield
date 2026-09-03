@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { TrendingUp, AlertTriangle, FileText, Package } from "lucide-react";
 
 const cards = [
@@ -11,6 +12,7 @@ const cards = [
     iconBg: "bg-green-50",
     iconColor: "text-green-700",
     valueColor: "text-green-700",
+    href: "/payments/analysis",
   },
   {
     id: "card-at-risk",
@@ -22,6 +24,7 @@ const cards = [
     iconBg: "bg-amber-50",
     iconColor: "text-amber-600",
     valueColor: "text-slate-900",
+    href: "/payments/analysis",
   },
   {
     id: "card-documents",
@@ -33,6 +36,7 @@ const cards = [
     iconBg: "bg-blue-50",
     iconColor: "text-blue-700",
     valueColor: "text-slate-900",
+    href: "/documents",
   },
   {
     id: "card-evidence-packs",
@@ -44,6 +48,7 @@ const cards = [
     iconBg: "bg-violet-50",
     iconColor: "text-violet-700",
     valueColor: "text-slate-900",
+    href: "/evidence-pack",
   },
 ];
 
@@ -53,15 +58,23 @@ export default function SummaryCards() {
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <div
+          <Link
             key={card.id}
             id={card.id}
-            className="bg-white rounded-xl border border-slate-100 p-5 hover:border-slate-200 hover:shadow-sm transition-all"
+            href={card.href}
+            className="bg-white rounded-xl border border-slate-100 p-5 hover:border-slate-200 hover:shadow-xs transition-all block group"
           >
             <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-medium text-slate-500">{card.title}</p>
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.iconBg}`}>
-                <Icon className={`w-4 h-4 ${card.iconColor}`} strokeWidth={2} />
+              <p className="text-xs font-medium text-slate-500 group-hover:text-slate-700 transition-colors">
+                {card.title}
+              </p>
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.iconBg}`}
+              >
+                <Icon
+                  className={`w-4 h-4 ${card.iconColor}`}
+                  strokeWidth={2}
+                />
               </div>
             </div>
             <p className={`text-2xl font-bold tracking-tight ${card.valueColor}`}>
@@ -74,7 +87,7 @@ export default function SummaryCards() {
             >
               {card.change}
             </p>
-          </div>
+          </Link>
         );
       })}
     </div>

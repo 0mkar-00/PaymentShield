@@ -19,28 +19,22 @@ const navItems = [
     id: "nav-dashboard",
   },
   {
-    label: "Payments",
-    href: "/dashboard/payments",
+    label: "Check a Payment",
+    href: "/payments/new",
     icon: CreditCard,
     id: "nav-payments",
   },
   {
     label: "Documents",
-    href: "/dashboard/documents",
+    href: "/documents",
     icon: FileText,
     id: "nav-documents",
   },
   {
-    label: "AI Advisor",
-    href: "/dashboard/advisor",
+    label: "Evidence Pack",
+    href: "/evidence-pack",
     icon: Sparkles,
-    id: "nav-advisor",
-  },
-  {
-    label: "Settings",
-    href: "/dashboard/settings",
-    icon: Settings,
-    id: "nav-settings",
+    id: "nav-evidence-pack",
   },
 ];
 

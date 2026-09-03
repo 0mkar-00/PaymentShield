@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
 type PaymentStatus = "Needs Review" | "Ready" | "Missing Documents";
@@ -164,13 +165,18 @@ export default function PaymentsTable() {
 
               {/* Action */}
               <div>
-                <button
+                <Link
+                  href={
+                    payment.id === "payment-acme"
+                      ? "/payments/analysis"
+                      : `/payments/analysis?client=${encodeURIComponent(payment.client)}&amount=${encodeURIComponent(payment.amount)}&service=${encodeURIComponent(payment.service)}`
+                  }
                   id={`review-${payment.id}`}
                   className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   Review
                   <ArrowUpRight className="w-3 h-3" />
-                </button>
+                </Link>
               </div>
             </div>
           );
