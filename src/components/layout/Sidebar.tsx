@@ -7,8 +7,8 @@ import {
   LayoutDashboard,
   CreditCard,
   FileText,
+  Package,
   Sparkles,
-  Settings,
 } from "lucide-react";
 
 const navItems = [
@@ -33,8 +33,14 @@ const navItems = [
   {
     label: "Evidence Pack",
     href: "/evidence-pack",
-    icon: Sparkles,
+    icon: Package,
     id: "nav-evidence-pack",
+  },
+  {
+    label: "AI Advisor",
+    href: "/ai-advisor",
+    icon: Sparkles,
+    id: "nav-ai-advisor",
   },
 ];
 

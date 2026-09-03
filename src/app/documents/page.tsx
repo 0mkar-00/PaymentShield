@@ -5,6 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import {
+  calculateReadiness,
+  PaymentInput,
+  DocumentState,
+  ReadinessResult,
+} from "@/lib/readiness-engine";
+import {
   ArrowLeft,
   Receipt,
   FileSignature,
@@ -16,7 +22,7 @@ import {
   Trash2,
   ArrowRight,
   ShieldCheck,
-  AlertCircle,
+  TrendingUp,
 } from "lucide-react";
 
 interface DocumentItem {
@@ -56,16 +62,34 @@ const INITIAL_DOCS: DocumentItem[] = [
   },
 ];
 
+const DEFAULT_PAYMENT: PaymentInput = {
+  clientName: "Acme Technologies",
+  amount: "₹2,50,000",
+  serviceType: "Website Development",
+  purpose: "50% advance payment for website development",
+  paymentType: "Advance Payment",
+  clientEmail: "finance@acmetech.example",
+};
+
 export default function SupportingDocumentsPage() {
   const router = useRouter();
   const [documents, setDocuments] = useState<DocumentItem[]>(INITIAL_DOCS);
+  const [payment, setPayment] = useState<PaymentInput>(DEFAULT_PAYMENT);
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
   useEffect(() => {
     try {
+      const storedPayment = sessionStorage.getItem("paymentshield_payment");
+      if (storedPayment) {
+        setPayment(JSON.parse(storedPayment));
+      }
+
       const stored = sessionStorage.getItem("paymentshield_documents");
       if (stored) {
-        const parsed = JSON.parse(stored) as Record<string, { fileName: string; fileSize?: string; uploadedAt?: string }>;
+        const parsed = JSON.parse(stored) as Record<
+          string,
+          { fileName: string; fileSize?: string; uploadedAt?: string }
+        >;
         setDocuments((prev) =>
           prev.map((doc) => {
             if (parsed[doc.id]) {
@@ -87,7 +111,10 @@ export default function SupportingDocumentsPage() {
 
   const saveDocumentsToStorage = (updatedDocs: DocumentItem[]) => {
     try {
-      const payload: Record<string, { fileName: string; fileSize?: string; uploadedAt?: string }> = {};
+      const payload: Record<
+        string,
+        { fileName: string; fileSize?: string; uploadedAt?: string }
+      > = {};
       updatedDocs.forEach((doc) => {
         if (doc.fileName) {
           payload[doc.id] = {
@@ -154,6 +181,19 @@ export default function SupportingDocumentsPage() {
     }
   };
 
+  // Convert current documents list to DocumentState for readiness calculation
+  const docState: DocumentState = {};
+  documents.forEach((d) => {
+    if (d.fileName) {
+      docState[d.id] = {
+        fileName: d.fileName,
+        fileSize: d.fileSize,
+        uploadedAt: d.uploadedAt,
+      };
+    }
+  });
+
+  const readiness: ReadinessResult = calculateReadiness(payment, docState);
   const uploadedCount = documents.filter((doc) => !!doc.fileName).length;
   const progressPercent = Math.round((uploadedCount / documents.length) * 100);
 
@@ -208,7 +248,10 @@ export default function SupportingDocumentsPage() {
                     if (idx < 2) {
                       return {
                         ...doc,
-                        fileName: idx === 0 ? "Acme_Invoice_INV-2026-089.pdf" : "Acme_Signed_SOW_Phase1.pdf",
+                        fileName:
+                          idx === 0
+                            ? "Acme_Invoice_INV-2026-089.pdf"
+                            : "Acme_Signed_SOW_Phase1.pdf",
                         fileSize: idx === 0 ? "184 KB" : "342 KB",
                         uploadedAt: "Today, 10:30 AM",
                       };
@@ -225,20 +268,34 @@ export default function SupportingDocumentsPage() {
             )}
           </div>
 
-          {/* Progress Banner Card */}
+          {/* Progress & Live Dynamic Readiness Banner */}
           <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  uploadedCount > 0 ? "bg-blue-50 text-blue-800" : "bg-slate-100 text-slate-400"
-                }`}>
+                <div
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    uploadedCount > 0
+                      ? "bg-blue-50 text-blue-800"
+                      : "bg-slate-100 text-slate-400"
+                  }`}
+                >
                   <FileCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-slate-900">
-                    {uploadedCount} of {documents.length} documents ready
-                  </h2>
-                  <p className="text-xs text-slate-500">
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="text-base font-bold text-slate-900">
+                      {uploadedCount} of {documents.length} documents ready
+                    </h2>
+                    <span
+                      className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${readiness.levelColor.badgeBg} ${readiness.levelColor.badgeText} border ${readiness.levelColor.border}`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${readiness.levelColor.dotBg}`}
+                      />
+                      Score: {readiness.score}/100 ({readiness.level})
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
                     {uploadedCount === 0
                       ? "Upload at least one document to generate your Evidence Pack."
                       : uploadedCount === documents.length
@@ -265,8 +322,20 @@ export default function SupportingDocumentsPage() {
               </button>
             </div>
 
+            {/* Score Impact Pill */}
+            <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100 mb-3">
+              <TrendingUp className="w-3.5 h-3.5 text-blue-700 flex-shrink-0" />
+              <span>
+                <strong>Engine Impact:</strong> Documents currently contribute{" "}
+                <strong className="text-blue-900">
+                  {readiness.breakdown.docScore} / {readiness.breakdown.docMax} points
+                </strong>{" "}
+                to your overall readiness score.
+              </span>
+            </div>
+
             {/* Progress Bar */}
-            <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mt-4">
+            <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
               <div
                 className={`h-full transition-all duration-500 rounded-full ${
                   progressPercent === 100
@@ -449,7 +518,8 @@ export default function SupportingDocumentsPage() {
           <div className="p-4 rounded-lg bg-blue-50/60 border border-blue-100 flex items-start gap-3">
             <ShieldCheck className="w-4 h-4 text-blue-700 flex-shrink-0 mt-0.5" />
             <div className="text-xs text-slate-600 leading-relaxed">
-              <span className="font-semibold text-slate-800">Review readiness best practice:</span> Having both an invoice and contract/SOW ready addresses over 80% of routine verification inquiries when receiving advance or milestone payments.
+              <span className="font-semibold text-slate-800">Review readiness best practice:</span>{" "}
+              Having both an invoice and contract/SOW ready addresses over 80% of routine verification inquiries when receiving advance or milestone payments.
             </div>
           </div>
         </div>

@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/layout/Sidebar";
 import {
+  calculateReadiness,
+  PaymentInput,
+  DocumentState,
+  ReadinessResult,
+} from "@/lib/readiness-engine";
+import {
   ArrowLeft,
   Download,
   CheckCircle2,
@@ -13,22 +19,12 @@ import {
   Briefcase,
   FileText,
   FileSignature,
-  MessageSquare,
   Sparkles,
   Shield,
   Clock,
   Printer,
+  FileUp,
 } from "lucide-react";
-
-interface PaymentDetails {
-  clientName: string;
-  amount: string;
-  serviceType: string;
-  purpose: string;
-  paymentType: string;
-  clientEmail?: string;
-  paymentDate?: string;
-}
 
 interface StoredDoc {
   fileName: string;
@@ -36,7 +32,7 @@ interface StoredDoc {
   uploadedAt?: string;
 }
 
-const DEFAULT_PAYMENT: PaymentDetails = {
+const DEFAULT_PAYMENT: PaymentInput = {
   clientName: "Acme Technologies",
   amount: "₹2,50,000",
   serviceType: "Website Development",
@@ -54,19 +50,8 @@ const CHECKLIST_ITEMS = [
 ];
 
 export default function EvidencePackPage() {
-  const [payment, setPayment] = useState<PaymentDetails>(DEFAULT_PAYMENT);
-  const [documents, setDocuments] = useState<Record<string, StoredDoc>>({
-    invoice: {
-      fileName: "Acme_Invoice_INV-2026-089.pdf",
-      fileSize: "184 KB",
-      uploadedAt: "Uploaded",
-    },
-    sow_contract: {
-      fileName: "Acme_Signed_SOW_Phase1.pdf",
-      fileSize: "342 KB",
-      uploadedAt: "Uploaded",
-    },
-  });
+  const [payment, setPayment] = useState<PaymentInput>(DEFAULT_PAYMENT);
+  const [documents, setDocuments] = useState<Record<string, StoredDoc>>({});
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
@@ -75,7 +60,7 @@ export default function EvidencePackPage() {
       if (storedPayment) {
         const parsed = JSON.parse(storedPayment);
         let formattedAmount = parsed.amount || DEFAULT_PAYMENT.amount;
-        if (formattedAmount && !formattedAmount.includes("₹")) {
+        if (formattedAmount && typeof formattedAmount === "string" && !formattedAmount.includes("₹")) {
           const num = Number(formattedAmount);
           if (!isNaN(num)) {
             formattedAmount = `₹${num.toLocaleString("en-IN")}`;
@@ -97,12 +82,43 @@ export default function EvidencePackPage() {
         const parsedDocs = JSON.parse(storedDocs);
         if (Object.keys(parsedDocs).length > 0) {
           setDocuments(parsedDocs);
+        } else {
+          // If empty in storage, populate sample docs so user sees an active pack
+          const sampleDocs = {
+            invoice: {
+              fileName: "Acme_Invoice_INV-2026-089.pdf",
+              fileSize: "184 KB",
+              uploadedAt: "Uploaded",
+            },
+            sow_contract: {
+              fileName: "Acme_Signed_SOW_Phase1.pdf",
+              fileSize: "342 KB",
+              uploadedAt: "Uploaded",
+            },
+          };
+          setDocuments(sampleDocs);
         }
+      } else {
+        const sampleDocs = {
+          invoice: {
+            fileName: "Acme_Invoice_INV-2026-089.pdf",
+            fileSize: "184 KB",
+            uploadedAt: "Uploaded",
+          },
+          sow_contract: {
+            fileName: "Acme_Signed_SOW_Phase1.pdf",
+            fileSize: "342 KB",
+            uploadedAt: "Uploaded",
+          },
+        };
+        setDocuments(sampleDocs);
       }
     } catch {
       // Use demo defaults
     }
   }, []);
+
+  const readiness: ReadinessResult = calculateReadiness(payment, documents as DocumentState);
 
   const handleDownload = () => {
     setDownloading(true);
@@ -117,22 +133,43 @@ export default function EvidencePackPage() {
       const doc = documents[item.id];
       const isReady = !!doc;
       return `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; background: ${isReady ? '#f8fafc' : '#ffffff'};">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; background: ${
+          isReady ? "#f8fafc" : "#ffffff"
+        };">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 16px; color: ${isReady ? '#16a34a' : '#94a3b8'};">
-              ${isReady ? '&#10003;' : '&#9675;'}
+            <span style="font-size: 16px; color: ${
+              isReady ? "#16a34a" : "#94a3b8"
+            };">
+              ${isReady ? "&#10003;" : "&#9675;"}
             </span>
             <div>
-              <strong style="color: #0f172a; font-size: 13px;">${item.name}</strong>
-              ${doc ? `<span style="display: block; font-size: 11px; color: #64748b; font-family: monospace;">${doc.fileName} (${doc.fileSize || 'Attached'})</span>` : ''}
+              <strong style="color: #0f172a; font-size: 13px;">${
+                item.name
+              }</strong>
+              ${
+                doc
+                  ? `<span style="display: block; font-size: 11px; color: #64748b; font-family: monospace;">${
+                      doc.fileName
+                    } (${doc.fileSize || "Attached"})</span>`
+                  : ""
+              }
             </div>
           </div>
-          <span style="font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 9999px; background: ${isReady ? '#dcfce7' : '#f1f5f9'}; color: ${isReady ? '#15803d' : '#64748b'};">
-            ${isReady ? 'Ready & Attached' : 'Missing'}
+          <span style="font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 9999px; background: ${
+            isReady ? "#dcfce7" : "#f1f5f9"
+          }; color: ${isReady ? "#15803d" : "#64748b"};">
+            ${isReady ? "Ready & Attached" : "Missing"}
           </span>
         </div>
       `;
     }).join("");
+
+    const recsHtml = readiness.recommendations
+      .map(
+        (rec) =>
+          `<li style="margin-bottom: 8px;"><strong>Action:</strong> ${rec}</li>`
+      )
+      .join("");
 
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -186,9 +223,9 @@ export default function EvidencePackPage() {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: #fef3c7;
-      border: 1px solid #fde68a;
-      color: #92400e;
+      background: #fafafa;
+      border: 1px solid #e2e8f0;
+      color: #0f172a;
       padding: 8px 16px;
       border-radius: 8px;
       font-size: 14px;
@@ -251,9 +288,6 @@ export default function EvidencePackPage() {
       font-size: 13px;
       color: #334155;
     }
-    .recommendations-list li {
-      margin-bottom: 8px;
-    }
     .disclaimer {
       background: #f8fafc;
       border-top: 1px solid #e2e8f0;
@@ -289,7 +323,7 @@ export default function EvidencePackPage() {
       <div class="meta-text">
         <strong>Generated:</strong> ${generatedDate}<br>
         <strong>Dossier ID:</strong> PS-EP-${Math.floor(100000 + Math.random() * 900000)}<br>
-        <strong>Reference:</strong> Advance Payment
+        <strong>Reference:</strong> ${payment.paymentType || "Payment"}
       </div>
     </div>
 
@@ -297,12 +331,14 @@ export default function EvidencePackPage() {
       <div>
         <span style="font-size: 12px; color: #64748b; font-weight: 500;">Payment Readiness Score</span>
         <div style="font-size: 28px; font-weight: 800; color: #0f172a; line-height: 1.1; margin-top: 2px;">
-          82<span style="font-size: 14px; font-weight: 500; color: #94a3b8;">/100</span>
+          ${readiness.score}<span style="font-size: 14px; font-weight: 500; color: #94a3b8;">/100</span>
         </div>
       </div>
       <div class="score-badge">
-        <span style="width: 8px; height: 8px; border-radius: 50%; background: #d97706;"></span>
-        Status: Needs Attention
+        <span style="width: 8px; height: 8px; border-radius: 50%; background: ${
+          readiness.levelColor.ringColor
+        };"></span>
+        Status: ${readiness.level}
       </div>
     </div>
 
@@ -335,17 +371,15 @@ export default function EvidencePackPage() {
       ${checklistHtml}
     </div>
 
-    <div class="section-title">AI Summary</div>
+    <div class="section-title">AI Readiness Summary</div>
     <div class="ai-box">
       <strong>Readiness Assessment:</strong><br>
-      "This payment is associated with a clearly identified client and service. The available documentation provides supporting context for the transaction. Keep the remaining client communication and proof-of-work records available for completeness."
+      &ldquo;${readiness.aiExplanation}&rdquo;
     </div>
 
     <div class="section-title">Recommended Actions</div>
     <ul class="recommendations-list">
-      <li><strong>Complete missing supporting documents:</strong> Ensure all relevant files (such as client confirmation emails and milestone proof) are indexed.</li>
-      <li><strong>Make the payment purpose more specific:</strong> Tie the transfer to the deliverables explicitly mentioned in the contract or invoice.</li>
-      <li><strong>Keep communication records accessible:</strong> Maintain chat logs or email records in case a routine verification inquiry is raised.</li>
+      ${recsHtml}
     </ul>
 
     <div class="disclaimer">
@@ -411,7 +445,7 @@ export default function EvidencePackPage() {
               id="download-evidence-pack-top-btn"
               onClick={handleDownload}
               disabled={downloading}
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-blue-800 hover:bg-blue-900 rounded-lg transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-blue-800 hover:bg-blue-900 rounded-lg transition-colors shadow-xs"
             >
               <Download className="w-3.5 h-3.5" />
               {downloading ? "Preparing download…" : "Download Evidence Pack"}
@@ -437,14 +471,15 @@ export default function EvidencePackPage() {
                 </p>
               </div>
 
-              {/* Status and Score */}
+              {/* Dynamic Status and Score */}
               <div className="flex items-center gap-4 bg-slate-50 border border-slate-200/60 p-4 rounded-xl">
                 <div>
                   <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
                     Readiness
                   </span>
                   <span className="text-2xl font-extrabold text-slate-900">
-                    82<span className="text-sm font-medium text-slate-400">/100</span>
+                    {readiness.score}
+                    <span className="text-sm font-medium text-slate-400">/100</span>
                   </span>
                 </div>
                 <div className="h-9 w-px bg-slate-200" />
@@ -452,9 +487,13 @@ export default function EvidencePackPage() {
                   <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
                     Status
                   </span>
-                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full mt-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    Needs Attention
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full mt-0.5 ${readiness.levelColor.badgeBg} ${readiness.levelColor.badgeText} border ${readiness.levelColor.border}`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${readiness.levelColor.dotBg}`}
+                    />
+                    {readiness.level}
                   </span>
                 </div>
               </div>
@@ -520,9 +559,7 @@ export default function EvidencePackPage() {
                   <FileText className="w-3.5 h-3.5 text-slate-400" />
                   Payment Purpose
                 </span>
-                <p className="text-xs text-slate-700">
-                  {payment.purpose}
-                </p>
+                <p className="text-xs text-slate-700">{payment.purpose}</p>
               </div>
             </div>
           </div>
@@ -536,8 +573,9 @@ export default function EvidencePackPage() {
               </h2>
               <Link
                 href="/documents"
-                className="text-xs text-blue-700 hover:text-blue-800 font-medium"
+                className="text-xs text-blue-700 hover:text-blue-800 font-medium inline-flex items-center gap-1"
               >
+                <FileUp className="w-3.5 h-3.5" />
                 Manage documents →
               </Link>
             </div>
@@ -597,7 +635,7 @@ export default function EvidencePackPage() {
                   AI Summary
                 </h2>
                 <p className="text-xs text-slate-700 leading-relaxed bg-blue-50/50 p-3.5 rounded-lg border border-blue-100/60">
-                  &ldquo;This payment is associated with a clearly identified client and service. The available documentation provides supporting context for the transaction. Keep the remaining client communication and proof-of-work records available for completeness.&rdquo;
+                  &ldquo;{readiness.aiExplanation}&rdquo;
                 </p>
               </div>
             </div>
@@ -611,24 +649,17 @@ export default function EvidencePackPage() {
             </h2>
 
             <ul className="space-y-2.5 text-xs text-slate-700">
-              <li className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50 border border-slate-100">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
-                <span>
-                  <strong>Complete the missing supporting documents:</strong> Attach remaining client communications or signed deliverables.
-                </span>
-              </li>
-              <li className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50 border border-slate-100">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
-                <span>
-                  <strong>Make the payment purpose more specific:</strong> Include milestones or contract deliverable IDs.
-                </span>
-              </li>
-              <li className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50 border border-slate-100">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
-                <span>
-                  <strong>Keep client communication and proof-of-work records available</strong> for quick turnaround on verification questions.
-                </span>
-              </li>
+              {readiness.recommendations.map((rec, idx) => (
+                <li
+                  key={idx}
+                  className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50 border border-slate-100"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
+                  <span>
+                    <strong>Action:</strong> {rec}
+                  </span>
+                </li>
+              ))}
             </ul>
 
             {/* Action Buttons */}
