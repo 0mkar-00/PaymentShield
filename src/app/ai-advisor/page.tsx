@@ -20,7 +20,7 @@ import {
   Copy,
   Check,
   ShieldAlert,
-  HelpCircle,
+  FileCheck,
 } from "lucide-react";
 
 const DEMO_PAYMENT: PaymentInput = {
@@ -64,6 +64,7 @@ export default function AIAdvisorPage() {
   }, []);
 
   const result: ReadinessResult = calculateReadiness(payment, documents);
+  const consistency = result.consistencyResult;
 
   const handleCopySuggestion = () => {
     if (result.purposeFeedback.suggestedText) {
@@ -139,15 +140,15 @@ export default function AIAdvisorPage() {
               <div className="h-9 w-px bg-slate-200" />
               <div>
                 <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                  Status
+                  Consistency
                 </span>
                 <span
-                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full mt-0.5 ${result.levelColor.badgeBg} ${result.levelColor.badgeText} border ${result.levelColor.border}`}
+                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full mt-0.5 ${consistency.statusColor.badgeBg} ${consistency.statusColor.badgeText} border ${consistency.statusColor.border}`}
                 >
                   <span
-                    className={`w-1.5 h-1.5 rounded-full ${result.levelColor.dotBg}`}
+                    className={`w-1.5 h-1.5 rounded-full ${consistency.statusColor.dotBg}`}
                   />
-                  {result.level}
+                  {consistency.hasInvoice || consistency.hasSOW ? `${consistency.score}/100` : "Pending"}
                 </span>
               </div>
             </div>
@@ -182,6 +183,14 @@ export default function AIAdvisorPage() {
                       {action.detail}
                     </p>
                   </div>
+                  {action.actionType === "consistency" && (
+                    <Link
+                      href="/payments/analysis#consistency-card"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+                    >
+                      Review Mismatch
+                    </Link>
+                  )}
                   {action.actionType === "docs" && (
                     <Link
                       href="/documents"
@@ -203,6 +212,47 @@ export default function AIAdvisorPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Section: Invoice & Contract Consistency Findings */}
+          <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-xs">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <FileCheck className="w-4 h-4 text-blue-700" />
+                Invoice &amp; Contract Consistency Findings
+              </h2>
+              <span
+                className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${consistency.statusColor.badgeBg} ${consistency.statusColor.badgeText} border ${consistency.statusColor.border}`}
+              >
+                {consistency.status}
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-4">
+              {consistency.status === "Consistent"
+                ? "Your payment information is consistent across the available records. No major consistency issues were detected."
+                : consistency.status === "Minor Mismatch"
+                ? "Minor wording differences detected between your payment submission and invoice/contract descriptions. Confirming identical wording reduces ambiguity."
+                : consistency.status === "Significant Mismatch"
+                ? "Discrepancy detected in core figures (e.g. payment amount or client entity). Aligning these details before review prevents routine processing holds."
+                : "Consistency check requires an invoice and signed SOW/contract to compare payment amounts, client entities, and scope."}
+            </p>
+
+            {consistency.recommendations.length > 0 && (
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+                  Consistency Recommendation:
+                </span>
+                <ul className="space-y-1">
+                  {consistency.recommendations.map((rec, idx) => (
+                    <li key={idx} className="text-xs text-slate-700 flex items-start gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600 mt-1.5 flex-shrink-0" />
+                      <span>{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {/* Section: Suggested Payment-Purpose Wording */}
@@ -253,11 +303,11 @@ export default function AIAdvisorPage() {
             </div>
           </div>
 
-          {/* Section: Top 3 Issues & Readiness Gaps */}
+          {/* Section: Top Readiness Gaps */}
           <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-xs">
             <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500" />
-              Readiness Gaps &amp; Status
+              Readiness Breakdown &amp; Status
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

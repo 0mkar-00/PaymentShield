@@ -24,6 +24,7 @@ import {
   Clock,
   Printer,
   FileUp,
+  FileCheck,
 } from "lucide-react";
 
 interface StoredDoc {
@@ -119,6 +120,7 @@ export default function EvidencePackPage() {
   }, []);
 
   const readiness: ReadinessResult = calculateReadiness(payment, documents as DocumentState);
+  const consistency = readiness.consistencyResult;
 
   const handleDownload = () => {
     setDownloading(true);
@@ -160,6 +162,22 @@ export default function EvidencePackPage() {
           }; color: ${isReady ? "#15803d" : "#64748b"};">
             ${isReady ? "Ready & Attached" : "Missing"}
           </span>
+        </div>
+      `;
+    }).join("");
+
+    const consistencyChecksHtml = consistency.checks.map((c) => {
+      const isVerified = c.status === "verified";
+      return `
+        <div style="padding: 10px 14px; border-bottom: 1px solid #f1f5f9; background: ${isVerified ? '#ffffff' : '#fef2f2'}; font-size: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <strong style="color: #0f172a;">${isVerified ? '&#10003;' : '&#9888;'} ${c.fieldName}</strong>
+            <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: ${isVerified ? '#16a34a' : '#b91c1c'};">${c.status}</span>
+          </div>
+          <div style="color: #475569; font-size: 11px; margin-bottom: 2px;">
+            Payment: <strong>${c.paymentValue}</strong> | Invoice: <strong>${c.invoiceValue || 'N/A'}</strong> | SOW: <strong>${c.sowValue || 'N/A'}</strong>
+          </div>
+          <div style="color: #64748b; font-size: 11px;">${c.explanation}</div>
         </div>
       `;
     }).join("");
@@ -369,6 +387,20 @@ export default function EvidencePackPage() {
     <div class="section-title">Documentation Checklist</div>
     <div class="checklist">
       ${checklistHtml}
+    </div>
+
+    <div class="section-title">Invoice &amp; Contract Consistency</div>
+    <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 12px 16px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 12px;">
+      <div>
+        <strong style="font-size: 13px; color: #0f172a;">Consistency Score: ${consistency.score}/100</strong>
+        <span style="font-size: 11px; color: #64748b; display: block;">${consistency.summary}</span>
+      </div>
+      <span style="font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 9999px; background: ${consistency.statusColor.badgeBg}; color: ${consistency.statusColor.badgeText};">
+        Status: ${consistency.status}
+      </span>
+    </div>
+    <div class="checklist">
+      ${consistencyChecksHtml}
     </div>
 
     <div class="section-title">AI Readiness Summary</div>
@@ -624,7 +656,68 @@ export default function EvidencePackPage() {
             </div>
           </div>
 
-          {/* Section 3: AI Summary */}
+          {/* Section 3: Invoice & Contract Consistency */}
+          <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <FileCheck className="w-4 h-4 text-blue-700" />
+                  Invoice &amp; Contract Consistency
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Verification of agreement terms against supporting records.
+                </p>
+              </div>
+
+              <span
+                className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${consistency.statusColor.badgeBg} ${consistency.statusColor.badgeText} border ${consistency.statusColor.border}`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${consistency.statusColor.dotBg}`}
+                />
+                Score: {consistency.score}/100 • {consistency.status}
+              </span>
+            </div>
+
+            <div className="space-y-2.5 mb-4">
+              {consistency.checks.map((c) => (
+                <div
+                  key={c.id}
+                  className="p-3 bg-slate-50/70 border border-slate-100 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                >
+                  <div className="flex items-center gap-2">
+                    {c.status === "verified" ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                    ) : c.status === "mismatch" ? (
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                    ) : (
+                      <span className="w-3.5 h-3.5 rounded-full border border-slate-300 flex-shrink-0" />
+                    )}
+                    <span className="font-semibold text-slate-900">{c.fieldName}</span>
+                  </div>
+
+                  <div className="text-slate-600 text-[11px] sm:text-right">
+                    <span>Payment: <strong className="text-slate-800">{c.paymentValue}</strong></span>
+                    {c.invoiceValue && <span> • Inv: <strong className="text-slate-800">{c.invoiceValue}</strong></span>}
+                    {c.sowValue && <span> • SOW: <strong className="text-slate-800">{c.sowValue}</strong></span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {consistency.recommendations.length > 0 && (
+              <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-700 block mb-1">
+                  Consistency Recommendation:
+                </span>
+                <p className="text-xs text-slate-700">
+                  {consistency.recommendations[0]}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Section 4: AI Summary */}
           <div className="bg-white rounded-xl border border-blue-100 p-6 shadow-xs relative overflow-hidden">
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 text-blue-700 mt-0.5">
@@ -641,7 +734,7 @@ export default function EvidencePackPage() {
             </div>
           </div>
 
-          {/* Section 4: Recommended Actions */}
+          {/* Section 5: Recommended Actions */}
           <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-xs">
             <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500" />

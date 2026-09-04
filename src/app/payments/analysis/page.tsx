@@ -27,6 +27,9 @@ import {
   Sparkles,
   Info,
   Radio,
+  FileCheck,
+  RefreshCw,
+  SlidersHorizontal,
 } from "lucide-react";
 
 const DEFAULT_DEMO: PaymentInput = {
@@ -44,6 +47,7 @@ function AnalysisContent() {
   const [details, setDetails] = useState<PaymentInput>(DEFAULT_DEMO);
   const [documents, setDocuments] = useState<DocumentState>({});
   const [dynamicExplanation, setDynamicExplanation] = useState<string>("");
+  const [simulateMismatch, setSimulateMismatch] = useState<boolean>(false);
 
   useEffect(() => {
     // 1. Try URL search params
@@ -119,7 +123,7 @@ function AnalysisContent() {
     }
 
     // Calculate initial readiness result
-    const evaluated = calculateReadiness(activePayment, activeDocs);
+    const evaluated = calculateReadiness(activePayment, activeDocs, false);
     setDynamicExplanation(evaluated.aiExplanation);
 
     // Asynchronously query optional server AI endpoint
@@ -145,7 +149,8 @@ function AnalysisContent() {
       });
   }, [searchParams]);
 
-  const result: ReadinessResult = calculateReadiness(details, documents);
+  const result: ReadinessResult = calculateReadiness(details, documents, simulateMismatch);
+  const consistency = result.consistencyResult;
 
   // Circular progress calculations
   const radius = 54;
@@ -193,13 +198,38 @@ function AnalysisContent() {
         {/* Main Content Area */}
         <div className="max-w-4xl mx-auto px-8 py-8 space-y-8">
           {/* Header */}
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Payment Readiness Analysis
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Here&apos;s what PaymentShield found before you receive this payment.
-            </p>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                Payment Readiness Analysis
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Here&apos;s what PaymentShield found before you receive this payment.
+              </p>
+            </div>
+
+            {/* Demo Simulation Toggle */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                id="simulate-mismatch-toggle"
+                onClick={() => setSimulateMismatch(!simulateMismatch)}
+                className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+                  simulateMismatch
+                    ? "bg-amber-50 text-amber-900 border-amber-300 shadow-xs"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                }`}
+                title="Toggle simulated discrepancy between payment details and invoice"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+                <span>
+                  {simulateMismatch ? "Mismatch Simulated (Active)" : "Simulate Mismatch"}
+                </span>
+                {simulateMismatch && (
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Top Grid: Score & Summary Card */}
@@ -221,7 +251,7 @@ function AnalysisContent() {
                   </span>
                 </div>
 
-                <div className="flex flex-col items-center justify-center py-4">
+                <div className="flex flex-col items-center justify-center py-3">
                   <div className="relative w-36 h-36 flex items-center justify-center">
                     <svg className="w-full h-full transform -rotate-90" viewBox="0 0 128 128">
                       <circle
@@ -256,20 +286,20 @@ function AnalysisContent() {
                     </div>
                   </div>
 
-                  <p className="text-xs text-center text-slate-500 mt-4 leading-relaxed max-w-xs">
+                  <p className="text-xs text-center text-slate-500 mt-3 leading-relaxed max-w-xs">
                     {result.level === "Review Ready"
-                      ? "Excellent readiness! Transaction data and documentation are comprehensively assembled."
+                      ? "Excellent readiness! Transaction details, documentation, and record consistency are verified."
                       : result.level === "Good — Minor Gaps"
-                      ? "Good readiness foundation with minor supplemental records recommended."
+                      ? "Good readiness foundation. Minor supplemental items or wording alignment recommended."
                       : result.level === "Needs Attention"
-                      ? "Core identifiers recorded, but supporting documentation requires attention."
+                      ? "Core identifiers recorded, but supporting documentation or consistency requires attention."
                       : "Significant payment information or documentation is missing before review."}
                   </p>
                 </div>
               </div>
 
               {/* Dynamic Sub-Score Breakdown */}
-              <div className="pt-4 border-t border-slate-100 space-y-2">
+              <div className="pt-3 border-t border-slate-100 space-y-1.5">
                 <div className="flex items-center justify-between text-[11px] text-slate-500">
                   <span>Core Information:</span>
                   <span className="font-semibold text-slate-700">
@@ -280,6 +310,12 @@ function AnalysisContent() {
                   <span>Documentation:</span>
                   <span className="font-semibold text-slate-700">
                     {result.breakdown.docScore} / {result.breakdown.docMax}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                  <span>Record Consistency:</span>
+                  <span className="font-semibold text-slate-700">
+                    {result.breakdown.consistencyScore} / {result.breakdown.consistencyMax}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-slate-500">
@@ -303,7 +339,7 @@ function AnalysisContent() {
                   </span>
                 </div>
 
-                <div className="space-y-3.5">
+                <div className="space-y-3">
                   <div className="flex items-start justify-between gap-4">
                     <span className="text-xs text-slate-400 flex items-center gap-1.5">
                       <Building2 className="w-3.5 h-3.5 text-slate-400" />
@@ -406,6 +442,188 @@ function AnalysisContent() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* ================================================== */}
+          {/* INVOICE & CONTRACT CONSISTENCY CHECK CARD */}
+          {/* ================================================== */}
+          <div
+            id="consistency-card"
+            className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-xs"
+          >
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 mb-5">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <FileCheck className="w-5 h-5 text-blue-700" />
+                    Invoice &amp; Contract Consistency
+                  </h2>
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${consistency.statusColor.badgeBg} ${consistency.statusColor.badgeText} border ${consistency.statusColor.border}`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${consistency.statusColor.dotBg}`}
+                    />
+                    {consistency.hasInvoice || consistency.hasSOW
+                      ? `${consistency.score}/100 • ${consistency.status}`
+                      : consistency.status}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Check whether your payment details agree with your supporting documents.
+                </p>
+              </div>
+
+              {/* Demo Action: Simulate Mismatch Toggle */}
+              {(consistency.hasInvoice || consistency.hasSOW) && (
+                <button
+                  type="button"
+                  id="simulate-mismatch-action"
+                  onClick={() => setSimulateMismatch(!simulateMismatch)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                    simulateMismatch
+                      ? "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100"
+                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                  }`}
+                  title="Toggle a simulated discrepancy to test consistency detection"
+                >
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 ${
+                      simulateMismatch ? "text-amber-600" : "text-slate-500"
+                    }`}
+                  />
+                  <span>
+                    {simulateMismatch ? "Reset to Consistent" : "Simulate Mismatch"}
+                  </span>
+                </button>
+              )}
+            </div>
+
+            {/* Consistency Summary Banner */}
+            <p className="text-xs text-slate-600 mb-5 leading-relaxed bg-slate-50/70 p-3.5 rounded-lg border border-slate-100">
+              {consistency.summary}
+            </p>
+
+            {/* Consistency Checks List */}
+            <div className="space-y-3">
+              {consistency.checks.map((check) => (
+                <div
+                  key={check.id}
+                  className={`p-4 rounded-xl border transition-colors ${
+                    check.status === "verified"
+                      ? "bg-green-50/20 border-slate-200/80 hover:border-green-200"
+                      : check.status === "mismatch" && check.severity === "critical"
+                      ? "bg-red-50/40 border-red-200"
+                      : check.status === "mismatch"
+                      ? "bg-amber-50/40 border-amber-200"
+                      : "bg-slate-50/50 border-slate-200/60"
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+                    <div className="flex items-center gap-2.5">
+                      {check.status === "verified" ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      ) : check.status === "mismatch" ? (
+                        <AlertTriangle
+                          className={`w-4 h-4 ${
+                            check.severity === "critical"
+                              ? "text-red-600"
+                              : "text-amber-600"
+                          } flex-shrink-0`}
+                        />
+                      ) : (
+                        <HelpCircle className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                      )}
+                      <span className="text-xs font-bold text-slate-900">
+                        {check.fieldName}
+                      </span>
+                    </div>
+
+                    <span
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider self-start sm:self-auto ${
+                        check.status === "verified"
+                          ? "bg-green-100/80 text-green-800"
+                          : check.status === "mismatch"
+                          ? check.severity === "critical"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-amber-100 text-amber-800"
+                          : "bg-slate-200/70 text-slate-600"
+                      }`}
+                    >
+                      {check.status === "verified"
+                        ? "Verified Match"
+                        : check.status === "mismatch"
+                        ? "Mismatch Detected"
+                        : "Unavailable"}
+                    </span>
+                  </div>
+
+                  {/* 3-Column Values Comparison Strip */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 py-2.5 px-3 bg-white/90 rounded-lg border border-slate-100 text-xs mb-2">
+                    <div>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-0.5">
+                        Payment Value
+                      </span>
+                      <span className="font-semibold text-slate-900 block truncate">
+                        {check.paymentValue}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-0.5">
+                        Invoice Value
+                      </span>
+                      <span
+                        className={`block truncate ${
+                          check.status === "mismatch" &&
+                          check.invoiceValue !== check.paymentValue
+                            ? "font-bold text-red-600"
+                            : "text-slate-700"
+                        }`}
+                      >
+                        {check.invoiceValue || "Not attached"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-0.5">
+                        SOW / Contract
+                      </span>
+                      <span
+                        className={`block truncate ${
+                          check.status === "mismatch" &&
+                          check.sowValue !== check.paymentValue
+                            ? "font-bold text-amber-700"
+                            : "text-slate-700"
+                        }`}
+                      >
+                        {check.sowValue || "Not attached"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Plain-language explanation */}
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    {check.explanation}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Prompt to upload docs if none attached */}
+            {!consistency.hasInvoice && !consistency.hasSOW && (
+              <div className="mt-5 p-4 rounded-xl bg-blue-50/60 border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p className="text-xs text-blue-900">
+                  Upload an invoice and signed SOW/contract to enable automatic consistency verification across your transaction records.
+                </p>
+                <Link
+                  href="/documents"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold bg-blue-800 text-white rounded-lg hover:bg-blue-900 transition-colors flex-shrink-0 shadow-xs"
+                >
+                  <FileUp className="w-3.5 h-3.5" />
+                  Upload Documents
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* AI Transaction Signals Section */}

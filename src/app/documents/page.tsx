@@ -11,6 +11,10 @@ import {
   ReadinessResult,
 } from "@/lib/readiness-engine";
 import {
+  DocumentMetadata,
+  DEFAULT_SAMPLE_METADATA,
+} from "@/lib/consistency-engine";
+import {
   ArrowLeft,
   Receipt,
   FileSignature,
@@ -33,6 +37,7 @@ interface DocumentItem {
   fileName?: string;
   fileSize?: string;
   uploadedAt?: string;
+  metadata?: DocumentMetadata;
 }
 
 const INITIAL_DOCS: DocumentItem[] = [
@@ -88,7 +93,7 @@ export default function SupportingDocumentsPage() {
       if (stored) {
         const parsed = JSON.parse(stored) as Record<
           string,
-          { fileName: string; fileSize?: string; uploadedAt?: string }
+          { fileName: string; fileSize?: string; uploadedAt?: string; metadata?: DocumentMetadata }
         >;
         setDocuments((prev) =>
           prev.map((doc) => {
@@ -98,6 +103,7 @@ export default function SupportingDocumentsPage() {
                 fileName: parsed[doc.id].fileName,
                 fileSize: parsed[doc.id].fileSize,
                 uploadedAt: parsed[doc.id].uploadedAt,
+                metadata: parsed[doc.id].metadata || DEFAULT_SAMPLE_METADATA[doc.id],
               };
             }
             return doc;
@@ -113,7 +119,7 @@ export default function SupportingDocumentsPage() {
     try {
       const payload: Record<
         string,
-        { fileName: string; fileSize?: string; uploadedAt?: string }
+        { fileName: string; fileSize?: string; uploadedAt?: string; metadata?: DocumentMetadata }
       > = {};
       updatedDocs.forEach((doc) => {
         if (doc.fileName) {
@@ -121,6 +127,7 @@ export default function SupportingDocumentsPage() {
             fileName: doc.fileName,
             fileSize: doc.fileSize,
             uploadedAt: doc.uploadedAt,
+            metadata: doc.metadata || DEFAULT_SAMPLE_METADATA[doc.id],
           };
         }
       });
@@ -151,6 +158,7 @@ export default function SupportingDocumentsPage() {
           fileName: file.name,
           fileSize: formattedSize,
           uploadedAt: dateStr,
+          metadata: doc.metadata || DEFAULT_SAMPLE_METADATA[id],
         };
       }
       return doc;
@@ -168,6 +176,7 @@ export default function SupportingDocumentsPage() {
           fileName: undefined,
           fileSize: undefined,
           uploadedAt: undefined,
+          metadata: undefined,
         };
       }
       return doc;
@@ -189,6 +198,7 @@ export default function SupportingDocumentsPage() {
         fileName: d.fileName,
         fileSize: d.fileSize,
         uploadedAt: d.uploadedAt,
+        metadata: d.metadata || DEFAULT_SAMPLE_METADATA[d.id],
       };
     }
   });
@@ -254,6 +264,7 @@ export default function SupportingDocumentsPage() {
                             : "Acme_Signed_SOW_Phase1.pdf",
                         fileSize: idx === 0 ? "184 KB" : "342 KB",
                         uploadedAt: "Today, 10:30 AM",
+                        metadata: DEFAULT_SAMPLE_METADATA[doc.id],
                       };
                     }
                     return doc;

@@ -3,6 +3,12 @@
  * Deterministic, explainable scoring and signal analysis for freelance payments.
  */
 
+import {
+  evaluateConsistency,
+  ConsistencyResult,
+  DocumentMetadata,
+} from "./consistency-engine";
+
 export interface PaymentInput {
   clientName?: string;
   amount?: string | number;
@@ -17,6 +23,7 @@ export interface DocumentRecord {
   fileName?: string;
   fileSize?: string;
   uploadedAt?: string;
+  metadata?: DocumentMetadata;
 }
 
 export type DocumentState = Record<string, DocumentRecord>;
@@ -34,7 +41,7 @@ export interface ReadinessCheck {
   title: string;
   description: string;
   satisfied: boolean;
-  category: "core" | "documentation" | "clarity";
+  category: "core" | "documentation" | "consistency" | "clarity";
 }
 
 export interface TransactionSignal {
@@ -61,11 +68,14 @@ export interface ReadinessResult {
     recommendation: string;
     suggestedText: string;
   };
+  consistencyResult: ConsistencyResult;
   breakdown: {
     coreScore: number;
     coreMax: number;
     docScore: number;
     docMax: number;
+    consistencyScore: number;
+    consistencyMax: number;
     clarityScore: number;
     clarityMax: number;
   };
@@ -78,7 +88,7 @@ export interface ReadinessResult {
     priority: number;
     title: string;
     detail: string;
-    actionType: "docs" | "purpose" | "info";
+    actionType: "docs" | "purpose" | "consistency" | "info";
   }>;
   aiExplanation: string;
 }
@@ -159,7 +169,14 @@ export function analyzePurposeQuality(
     };
   }
 
-  if (wordCount >= 4 && (hasMilestone || lower.includes(serviceSample.toLowerCase()) || lower.includes("website") || lower.includes("development") || lower.includes("design"))) {
+  if (
+    wordCount >= 4 &&
+    (hasMilestone ||
+      lower.includes(serviceSample.toLowerCase()) ||
+      lower.includes("website") ||
+      lower.includes("development") ||
+      lower.includes("design"))
+  ) {
     return {
       specificity: "better",
       rating: "Reasonably Specific",
@@ -180,7 +197,8 @@ export function analyzePurposeQuality(
 
 export function calculateReadiness(
   payment: PaymentInput,
-  documents: DocumentState = {}
+  documents: DocumentState = {},
+  simulateMismatch: boolean = false
 ): ReadinessResult {
   const amountVal = parseAmount(payment.amount);
   const clientName = (payment.clientName || "").trim();
@@ -189,6 +207,9 @@ export function calculateReadiness(
   const paymentType = (payment.paymentType || "").trim();
   const clientEmail = (payment.clientEmail || "").trim();
   const paymentDate = (payment.paymentDate || "").trim();
+
+  // Run consistency engine
+  const consistencyResult = evaluateConsistency(payment, documents, simulateMismatch);
 
   // Document existence flags
   const hasInvoice = !!documents["invoice"]?.fileName;
@@ -206,34 +227,43 @@ export function calculateReadiness(
   if (clientEmail) coreScore += 5;
   if (paymentDate) coreScore += 5;
 
-  // 2. Documentation (Max 40)
+  // 2. Documentation Completeness (Max 30)
   let docScore = 0;
-  const docMax = 40;
+  const docMax = 30;
 
-  if (hasInvoice) docScore += 15;
-  if (hasSOW) docScore += 15;
-  if (hasComm) docScore += 5;
-  if (hasProofOfWork) docScore += 5;
+  if (hasInvoice) docScore += 11;
+  if (hasSOW) docScore += 11;
+  if (hasComm) docScore += 4;
+  if (hasProofOfWork) docScore += 4;
 
-  // 3. Clarity & Specificity (Max 20)
+  // 3. Consistency (Max 15)
+  const consistencyMax = 15;
+  let consistencyScore = 0;
+  if (hasInvoice || hasSOW) {
+    consistencyScore = Math.round((consistencyResult.score / 100) * consistencyMax);
+  } else {
+    consistencyScore = 0;
+  }
+
+  // 4. Clarity & Specificity (Max 15)
   let clarityScore = 0;
-  const clarityMax = 20;
+  const clarityMax = 15;
 
-  if (paymentType) clarityScore += 5;
+  if (paymentType) clarityScore += 3;
 
   const purposeAnalysis = analyzePurposeQuality(purpose, serviceType);
   if (purposeAnalysis.specificity === "strong") {
-    clarityScore += 15;
+    clarityScore += 12;
   } else if (purposeAnalysis.specificity === "better") {
-    clarityScore += 10;
+    clarityScore += 8;
   } else if (purposeAnalysis.specificity === "weak") {
-    clarityScore += 4;
+    clarityScore += 3;
   } else {
     clarityScore += 0;
   }
 
   // Calculate total score bounded between 0 and 100
-  const rawScore = coreScore + docScore + clarityScore;
+  const rawScore = coreScore + docScore + consistencyScore + clarityScore;
   const score = Math.min(100, Math.max(0, Math.round(rawScore)));
 
   // Determine readiness level
@@ -323,23 +353,6 @@ export function calculateReadiness(
       category: "clarity",
     },
     {
-      id: "purpose-specificity",
-      title:
-        purposeAnalysis.specificity === "strong"
-          ? "Payment purpose is well-defined"
-          : purposeAnalysis.specificity === "better"
-          ? "Payment purpose reasonably clear"
-          : "Payment purpose could be more specific",
-      description:
-        purposeAnalysis.specificity === "strong"
-          ? "References deliverables and contractual agreement"
-          : purposeAnalysis.recommendation,
-      satisfied:
-        purposeAnalysis.specificity === "strong" ||
-        purposeAnalysis.specificity === "better",
-      category: "clarity",
-    },
-    {
       id: "docs-invoice-sow",
       title:
         hasInvoice && hasSOW
@@ -359,10 +372,29 @@ export function calculateReadiness(
       category: "documentation",
     },
     {
+      id: "consistency-check",
+      title:
+        consistencyResult.status === "Consistent"
+          ? "Invoice & contract details consistent"
+          : consistencyResult.status === "Minor Mismatch"
+          ? "Minor wording mismatch in supporting records"
+          : consistencyResult.status === "Significant Mismatch"
+          ? "Significant mismatch between payment & invoice"
+          : "Consistency check pending documents",
+      description:
+        consistencyResult.status === "Consistent"
+          ? "Payment figures and client name agree across available records"
+          : consistencyResult.summary,
+      satisfied:
+        consistencyResult.status === "Consistent" ||
+        (hasInvoice && hasSOW && consistencyResult.mismatchCount === 0),
+      category: "consistency",
+    },
+    {
       id: "docs-verification",
       title:
         hasComm && hasProofOfWork
-          ? "Supporting evidence fully attached"
+          ? "Supplemental records attached"
           : hasComm || hasProofOfWork
           ? "Supplemental evidence partially attached"
           : "Supplemental records not uploaded",
@@ -398,26 +430,26 @@ export function calculateReadiness(
     });
   }
 
-  // Purpose signal
-  if (purposeAnalysis.specificity === "strong") {
+  // Consistency signal
+  if (consistencyResult.status === "Consistent") {
     signals.push({
-      id: "sig-purpose-strong",
-      label: "Clear transaction purpose",
-      detail: "Purpose clearly connects this payment to specific deliverables and signed terms.",
+      id: "sig-consistency-pass",
+      label: "Record alignment verified",
+      detail: "Transaction details agree with the attached invoice and contract metadata.",
       level: "positive",
     });
-  } else if (purposeAnalysis.specificity === "better") {
+  } else if (consistencyResult.status === "Minor Mismatch") {
     signals.push({
-      id: "sig-purpose-better",
-      label: "Payment purpose clarity",
-      detail: "Specific service identified, but milestone or contract reference could improve clarity.",
+      id: "sig-consistency-warn",
+      label: "Record phrasing mismatch",
+      detail: "Minor description difference detected between payment details and invoice/SOW.",
       level: "advisory",
     });
-  } else {
+  } else if (consistencyResult.status === "Significant Mismatch") {
     signals.push({
-      id: "sig-purpose-weak",
-      label: "Vague payment description",
-      detail: "Generic purpose description may warrant additional preparation if reviewed.",
+      id: "sig-consistency-mismatch",
+      label: "Contradiction in records",
+      detail: "Important details (such as amount or client name) disagree between payment details and supporting documents.",
       level: "attention",
     });
   }
@@ -455,15 +487,27 @@ export function calculateReadiness(
     });
   }
 
-  // Prioritized actions & recommendations
+  // Prioritized actions
   const prioritizedActions: Array<{
     priority: number;
     title: string;
     detail: string;
-    actionType: "docs" | "purpose" | "info";
+    actionType: "docs" | "purpose" | "consistency" | "info";
   }> = [];
 
   let pCount = 1;
+
+  // If there is a consistency mismatch, prioritize it!
+  if (consistencyResult.mismatchCount > 0) {
+    const firstMismatch = consistencyResult.checks.find((c) => c.status === "mismatch");
+    prioritizedActions.push({
+      priority: pCount++,
+      title: `Align ${firstMismatch?.fieldName || "inconsistent fields"} between payment and invoice`,
+      detail: firstMismatch?.explanation || "Ensure payment details agree with attached document figures.",
+      actionType: "consistency",
+    });
+  }
+
   if (!hasInvoice || !hasSOW) {
     prioritizedActions.push({
       priority: pCount++,
@@ -516,6 +560,20 @@ export function calculateReadiness(
     );
   }
 
+  if (consistencyResult.status === "Significant Mismatch") {
+    explanationParts.push(
+      `A notable mismatch was detected between the payment details and supporting document records. Resolving this discrepancy will significantly reduce verification delays.`
+    );
+  } else if (consistencyResult.status === "Minor Mismatch") {
+    explanationParts.push(
+      `Minor wording differences exist between your payment description and invoice, though core figures align.`
+    );
+  } else if (consistencyResult.status === "Consistent") {
+    explanationParts.push(
+      `The payment information is consistent across the available invoice and contract records.`
+    );
+  }
+
   if (docNames.length === 4) {
     explanationParts.push(
       `Documentation is comprehensive with all supporting records attached, providing high confidence for review preparation.`
@@ -535,16 +593,6 @@ export function calculateReadiness(
     );
   }
 
-  if (purposeAnalysis.specificity === "strong") {
-    explanationParts.push(
-      `The payment purpose is well-defined and clearly states milestone deliverables.`
-    );
-  } else {
-    explanationParts.push(
-      `Refining the payment purpose to explicitly mention agreed deliverables will eliminate ambiguity.`
-    );
-  }
-
   const aiExplanation = explanationParts.join(" ");
 
   return {
@@ -553,11 +601,14 @@ export function calculateReadiness(
     levelColor,
     purposeSpecificity: purposeAnalysis.specificity,
     purposeFeedback: purposeAnalysis,
+    consistencyResult,
     breakdown: {
       coreScore,
       coreMax,
       docScore,
       docMax,
+      consistencyScore,
+      consistencyMax,
       clarityScore,
       clarityMax,
     },
