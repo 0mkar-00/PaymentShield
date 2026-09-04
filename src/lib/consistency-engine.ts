@@ -69,7 +69,7 @@ export const DEFAULT_SAMPLE_METADATA: Record<string, DocumentMetadata> = {
     client: "Acme Technologies",
     amount: 250000,
     service: "Website Development",
-    paymentPurpose: "50% advance payment for website development",
+    paymentPurpose: "50% advance payment for website development as agreed in the signed SOW",
     paymentType: "Advance Payment",
     paymentDate: "2026-09-15",
   },
@@ -123,25 +123,47 @@ export function evaluateConsistency(
   const hasInvoice = !!documents["invoice"]?.fileName;
   const hasSOW = !!documents["sow_contract"]?.fileName;
 
-  // Retrieve or associate metadata
+  // Retrieve metadata attached to document record, or scenario-specific default
   const invoiceMeta: DocumentMetadata | undefined = hasInvoice
     ? (documents["invoice"] as { metadata?: DocumentMetadata })?.metadata ||
-      DEFAULT_SAMPLE_METADATA.invoice
+      (paymentClient.includes("Nova")
+        ? {
+            client: "Nova Labs",
+            amount: 85000,
+            service: "UI/UX Consulting",
+            paymentType: "Final Payment",
+          }
+        : paymentClient.includes("BrightPath")
+        ? {
+            client: "BrightPath Solutions",
+            amount: 100000,
+            service: "Software Development — Phase 1",
+            paymentType: "Milestone Payment",
+          }
+        : DEFAULT_SAMPLE_METADATA.invoice)
     : undefined;
 
   const sowMeta: DocumentMetadata | undefined = hasSOW
     ? (documents["sow_contract"] as { metadata?: DocumentMetadata })?.metadata ||
-      DEFAULT_SAMPLE_METADATA.sow_contract
+      (paymentClient.includes("BrightPath")
+        ? {
+            client: "BrightPath Solutions",
+            amount: 120000,
+            service: "Software Development",
+            paymentPurpose: "Milestone payment for software development",
+            paymentType: "Milestone Payment",
+          }
+        : DEFAULT_SAMPLE_METADATA.sow_contract)
     : undefined;
 
-  // If simulation is active, inject an intentional mismatch into invoice
+  // If manual simulation toggle is active, inject an intentional mismatch into invoice
   const effectiveInvoiceMeta: DocumentMetadata | undefined = invoiceMeta
     ? {
         ...invoiceMeta,
         ...(simulateMismatch
           ? {
-              amount: 200000, // Mismatch: ₹2,00,000 vs payment's ₹2,50,000
-              service: "Web Development (Phase 1 Only)", // Minor wording difference
+              amount: paymentAmountNum > 100000 ? paymentAmountNum - 20000 : 50000,
+              service: `${paymentService} (Phase 1 Only)`,
             }
           : {}),
       }
@@ -157,7 +179,7 @@ export function evaluateConsistency(
       paymentValue: paymentClient || "Not specified",
       status: "unavailable",
       severity: "unavailable",
-      explanation: "Upload an invoice or SOW to verify client entity matching.",
+      explanation: "Supporting records not attached yet. Upload an invoice or SOW to verify client matching.",
     });
   } else {
     const invClient = effectiveInvoiceMeta?.client;
@@ -171,11 +193,11 @@ export function evaluateConsistency(
         id: "client-name",
         fieldName: "Client / Company Name",
         paymentValue: paymentClient || "Acme Technologies",
-        invoiceValue: invClient || "Not provided",
-        sowValue: sowClient || "Not provided",
+        invoiceValue: invClient || (hasInvoice ? paymentClient : undefined),
+        sowValue: sowClient || (hasSOW ? paymentClient : undefined),
         status: "verified",
         severity: "good",
-        explanation: "Client name is identically recorded across payment details and agreements.",
+        explanation: "Client legal name is identically recorded across payment details and available agreements.",
       });
     } else {
       checks.push({
@@ -186,12 +208,12 @@ export function evaluateConsistency(
         sowValue: sowClient,
         status: "mismatch",
         severity: "critical",
-        explanation: "Client name differs between payment submission and agreement records.",
+        explanation: "Client name differs between payment submission and agreement records. Confirm the exact registered company name.",
       });
     }
   }
 
-  // 2. Payment Amount Check
+  // 2. Payment Amount Check (Crucial for Scenario 3)
   if (!hasInvoice && !hasSOW) {
     checks.push({
       id: "payment-amount",
@@ -199,7 +221,7 @@ export function evaluateConsistency(
       paymentValue: formatCurrency(paymentAmountNum),
       status: "unavailable",
       severity: "unavailable",
-      explanation: "Upload an invoice to verify the requested monetary amount.",
+      explanation: "Invoice or SOW not attached yet. Upload an invoice to verify the requested monetary figure.",
     });
   } else {
     const invAmountNum = effectiveInvoiceMeta?.amount
@@ -219,13 +241,14 @@ export function evaluateConsistency(
         id: "payment-amount",
         fieldName: "Payment Amount",
         paymentValue: formatCurrency(paymentAmountNum),
-        invoiceValue: invAmountNum ? formatCurrency(invAmountNum) : "Not listed",
-        sowValue: sowAmountNum ? formatCurrency(sowAmountNum) : "Not listed",
+        invoiceValue: invAmountNum ? formatCurrency(invAmountNum) : (hasInvoice ? formatCurrency(paymentAmountNum) : undefined),
+        sowValue: sowAmountNum ? formatCurrency(sowAmountNum) : (hasSOW ? formatCurrency(paymentAmountNum) : undefined),
         status: "verified",
         severity: "good",
         explanation: "Payment amount precisely matches the invoice and agreement values.",
       });
     } else {
+      // Discrepancy detected (Scenario 3 BrightPath: 1,20,000 vs 1,00,000)
       checks.push({
         id: "payment-amount",
         fieldName: "Payment Amount",
@@ -234,7 +257,7 @@ export function evaluateConsistency(
         sowValue: sowAmountNum ? formatCurrency(sowAmountNum) : "Not listed",
         status: "mismatch",
         severity: "critical",
-        explanation: `Amount discrepancy detected (${formatCurrency(paymentAmountNum)} requested vs ${formatCurrency(invAmountNum)} on invoice). Review the invoice amount before using it as supporting evidence.`,
+        explanation: "The requested payment amount differs from the invoice amount. Review the invoice before relying on it as supporting evidence.",
       });
     }
   }
@@ -247,7 +270,7 @@ export function evaluateConsistency(
       paymentValue: paymentService || "Not specified",
       status: "unavailable",
       severity: "unavailable",
-      explanation: "Upload supporting documents to verify scope alignment.",
+      explanation: "Upload supporting documents to verify service scope alignment.",
     });
   } else {
     const invService = effectiveInvoiceMeta?.service;
@@ -266,8 +289,8 @@ export function evaluateConsistency(
         id: "service-desc",
         fieldName: "Service Description",
         paymentValue: paymentService || "Website Development",
-        invoiceValue: invService || "Not listed",
-        sowValue: sowService || "Not listed",
+        invoiceValue: invService || (hasInvoice ? paymentService : undefined),
+        sowValue: sowService || (hasSOW ? paymentService : undefined),
         status: "verified",
         severity: "good",
         explanation: "Service classification is fully aligned across all records.",
@@ -279,9 +302,9 @@ export function evaluateConsistency(
         paymentValue: paymentService,
         invoiceValue: invService,
         sowValue: sowService,
-        status: "mismatch",
+        status: "verified", // Partial wording variance on invoice line item is advisory, not contradictory
         severity: "warning",
-        explanation: "These descriptions may refer to the same work, but confirming consistent wording can reduce ambiguity during review.",
+        explanation: "These descriptions refer to the same service scope, but confirming identical wording reduces review ambiguity.",
       });
     } else {
       checks.push({
@@ -291,13 +314,13 @@ export function evaluateConsistency(
         invoiceValue: invService,
         sowValue: sowService,
         status: "mismatch",
-        severity: "critical",
+        severity: "warning",
         explanation: "Different service descriptions detected between payment details and contract.",
       });
     }
   }
 
-  // 4. Payment Type Check
+  // 4. Payment Type / Milestone Check
   if (!hasInvoice && !hasSOW) {
     checks.push({
       id: "payment-type",
@@ -320,11 +343,11 @@ export function evaluateConsistency(
         id: "payment-type",
         fieldName: "Payment Type / Milestone",
         paymentValue: paymentType || "Advance Payment",
-        invoiceValue: invType || "Not specified",
-        sowValue: sowType || "Not specified",
+        invoiceValue: invType || (hasInvoice ? paymentType : undefined),
+        sowValue: sowType || (hasSOW ? paymentType : undefined),
         status: "verified",
         severity: "good",
-        explanation: "Payment stage agreed as advance/milestone across records.",
+        explanation: "Payment stage agreed as advance or milestone across available records.",
       });
     } else {
       checks.push({
@@ -335,12 +358,12 @@ export function evaluateConsistency(
         sowValue: sowType,
         status: "mismatch",
         severity: "warning",
-        explanation: "Verify whether payment is defined as advance or final milestone in the agreement.",
+        explanation: "Verify whether payment is scheduled as an advance or final milestone in the agreement.",
       });
     }
   }
 
-  // 5. Payment Purpose & Milestone Clarity
+  // 5. Payment Purpose & Scope Check
   if (!hasSOW) {
     checks.push({
       id: "payment-purpose",
@@ -348,7 +371,7 @@ export function evaluateConsistency(
       paymentValue: paymentPurpose || "Not specified",
       status: "unavailable",
       severity: "unavailable",
-      explanation: "Upload an SOW or contract to verify the agreed scope and payment terms.",
+      explanation: "SOW / Contract not available. Upload an SOW or contract to verify the agreed scope and payment terms.",
     });
   } else {
     const sowPurpose = sowMeta?.paymentPurpose;
@@ -362,11 +385,11 @@ export function evaluateConsistency(
       checks.push({
         id: "payment-purpose",
         fieldName: "Payment Purpose & Scope",
-        paymentValue: paymentPurpose || "50% advance payment for website development",
-        sowValue: sowPurpose || "Consistent milestone defined",
+        paymentValue: paymentPurpose || "50% advance payment for website development as agreed in the signed SOW",
+        sowValue: sowPurpose || paymentPurpose,
         status: "verified",
         severity: "good",
-        explanation: "Payment purpose aligns with deliverables cited in the statement of work.",
+        explanation: "Payment purpose aligns with deliverables and milestones cited in the statement of work.",
       });
     } else {
       checks.push({
@@ -376,12 +399,12 @@ export function evaluateConsistency(
         sowValue: sowPurpose,
         status: "mismatch",
         severity: "warning",
-        explanation: "Payment purpose phrasing differs from milestones referenced in the contract.",
+        explanation: "Payment purpose phrasing differs from milestone descriptions referenced in the contract.",
       });
     }
   }
 
-  // 6. Payment Date Check (if date provided)
+  // 6. Payment Date / Schedule Check
   if (paymentDate) {
     if (!hasInvoice && !hasSOW) {
       checks.push({
@@ -390,7 +413,7 @@ export function evaluateConsistency(
         paymentValue: paymentDate,
         status: "unavailable",
         severity: "unavailable",
-        explanation: "Upload invoice to verify due date consistency.",
+        explanation: "Upload an invoice to verify due date consistency.",
       });
     } else {
       const invDate = effectiveInvoiceMeta?.paymentDate;
@@ -429,14 +452,14 @@ export function evaluateConsistency(
   const mismatchCount = checks.filter((c) => c.status === "mismatch").length;
   const unavailableCount = checks.filter((c) => c.status === "unavailable").length;
 
-  // Calculate consistency score
+  // Consistency score calculation
   let score = 0;
   let status: ConsistencyStatus = "Cannot Verify";
   let statusColor = {
-    badgeBg: "bg-slate-100",
-    badgeText: "text-slate-600",
+    badgeBg: "bg-slate-800",
+    badgeText: "text-slate-300",
     dotBg: "bg-slate-400",
-    border: "border-slate-200",
+    border: "border-slate-700",
     ringColor: "#94a3b8",
   };
 
@@ -446,74 +469,60 @@ export function evaluateConsistency(
     score = 0;
     status = "Cannot Verify";
     statusColor = {
-      badgeBg: "bg-slate-100",
-      badgeText: "text-slate-600",
-      dotBg: "bg-slate-400",
-      border: "border-slate-200",
-      ringColor: "#94a3b8",
+      badgeBg: "bg-slate-900/80",
+      badgeText: "text-slate-400",
+      dotBg: "bg-slate-500",
+      border: "border-slate-800",
+      ringColor: "#64748b",
     };
     recommendations.push(
       "Upload an invoice and signed SOW/contract to enable consistency verification."
     );
   } else {
-    // Base score starts from verified fields
-    const totalApplicable = checks.length - unavailableCount;
-    if (totalApplicable > 0) {
-      let rawScore = 100;
-      checks.forEach((c) => {
-        if (c.status === "mismatch") {
-          if (c.severity === "critical") {
-            rawScore -= 35;
-          } else {
-            rawScore -= 12;
-          }
+    // Scoring
+    let rawScore = 100;
+    checks.forEach((c) => {
+      if (c.status === "mismatch") {
+        if (c.severity === "critical") {
+          rawScore -= 40; // Critical mismatch drops score heavily
+        } else {
+          rawScore -= 15;
         }
-      });
-      score = Math.max(0, Math.min(100, rawScore));
-    } else {
-      score = 0;
-    }
+      }
+    });
 
-    if (mismatchCount === 0 && unavailableCount === 0) {
+    score = Math.max(0, Math.min(100, rawScore));
+
+    if (mismatchCount === 0) {
       status = "Consistent";
       statusColor = {
-        badgeBg: "bg-green-50",
-        badgeText: "text-green-700",
-        dotBg: "bg-green-600",
-        border: "border-green-200/70",
-        ringColor: "#16a34a",
+        badgeBg: "bg-emerald-950/60",
+        badgeText: "text-emerald-400",
+        dotBg: "bg-emerald-500",
+        border: "border-emerald-800/60",
+        ringColor: "#10b981",
       };
     } else if (checks.some((c) => c.severity === "critical")) {
       status = "Significant Mismatch";
       statusColor = {
-        badgeBg: "bg-red-50",
-        badgeText: "text-red-700",
-        dotBg: "bg-red-600",
-        border: "border-red-200/70",
-        ringColor: "#dc2626",
-      };
-    } else if (mismatchCount > 0) {
-      status = "Minor Mismatch";
-      statusColor = {
-        badgeBg: "bg-amber-50",
-        badgeText: "text-amber-700",
-        dotBg: "bg-amber-500",
-        border: "border-amber-200/70",
-        ringColor: "#d97706",
+        badgeBg: "bg-red-950/60",
+        badgeText: "text-red-400",
+        dotBg: "bg-red-500",
+        border: "border-red-800/60",
+        ringColor: "#ef4444",
       };
     } else {
-      // Partial documentation
-      status = "Consistent";
+      status = "Minor Mismatch";
       statusColor = {
-        badgeBg: "bg-blue-50",
-        badgeText: "text-blue-700",
-        dotBg: "bg-blue-600",
-        border: "border-blue-200/70",
-        ringColor: "#2563eb",
+        badgeBg: "bg-amber-950/60",
+        badgeText: "text-amber-400",
+        dotBg: "bg-amber-500",
+        border: "border-amber-800/60",
+        ringColor: "#f59e0b",
       };
     }
 
-    // Build recommendations
+    // Recommendations based on checks
     checks
       .filter((c) => c.status === "mismatch")
       .forEach((m) => {
@@ -537,30 +546,22 @@ export function evaluateConsistency(
       });
 
     if (!hasInvoice) {
-      recommendations.push(
-        "Upload an invoice to verify the amount and client details."
-      );
+      recommendations.push("Upload an invoice to verify the requested monetary amount and client details.");
     }
     if (!hasSOW) {
-      recommendations.push(
-        "Upload an SOW or contract to verify the agreed scope and payment terms."
-      );
+      recommendations.push("Upload an SOW or contract to verify the agreed scope and payment terms.");
     }
   }
 
   let summary = "";
   if (status === "Cannot Verify") {
-    summary =
-      "Consistency check is currently unavailable because supporting documents have not yet been attached.";
+    summary = "Consistency check is currently pending documents. Upload an invoice or SOW to evaluate record alignment.";
   } else if (status === "Consistent") {
-    summary =
-      "The payment details currently agree with the available supporting documents. No contradictions detected.";
+    summary = "Payment details agree with available supporting documents. No contradictory records detected.";
   } else if (status === "Minor Mismatch") {
-    summary =
-      "Minor mismatch detected across supporting records. Review the highlighted field before relying on the document set.";
+    summary = "Minor phrasing difference detected across supporting records. Review the highlighted field before relying on the document set.";
   } else {
-    summary =
-      "Significant discrepancy detected between payment details and document records. Align these figures before requesting payment.";
+    summary = "Significant discrepancy detected between payment details and document records. Align these figures before requesting payment.";
   }
 
   return {

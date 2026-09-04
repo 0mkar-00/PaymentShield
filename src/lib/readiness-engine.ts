@@ -154,12 +154,13 @@ export function analyzePurposeQuality(
     "scope",
     "inv-",
     "invoice",
+    "engagement",
   ];
 
   const hasMilestone = milestoneKeywords.some((kw) => lower.includes(kw));
   const hasReference = referenceKeywords.some((kw) => lower.includes(kw));
 
-  if (wordCount >= 6 && hasMilestone && hasReference) {
+  if (wordCount >= 5 && hasMilestone && hasReference) {
     return {
       specificity: "strong",
       rating: "Highly Specific",
@@ -175,6 +176,7 @@ export function analyzePurposeQuality(
       lower.includes(serviceSample.toLowerCase()) ||
       lower.includes("website") ||
       lower.includes("development") ||
+      lower.includes("consulting") ||
       lower.includes("design"))
   ) {
     return {
@@ -189,7 +191,7 @@ export function analyzePurposeQuality(
   return {
     specificity: "weak",
     rating: "Vague Purpose",
-    explanation: "The description is brief and generic (e.g., 'payment for work').",
+    explanation: "The description is brief and generic.",
     recommendation: `Upgrade description to specify the deliverable and agreed terms (e.g., "${suggestedText}").`,
     suggestedText,
   };
@@ -269,52 +271,52 @@ export function calculateReadiness(
   // Determine readiness level
   let level: ReadinessLevel = "Needs Attention";
   let levelColor = {
-    badgeBg: "bg-amber-50",
-    badgeText: "text-amber-700",
+    badgeBg: "bg-amber-950/60",
+    badgeText: "text-amber-400",
     dotBg: "bg-amber-500",
-    border: "border-amber-200/60",
-    ringColor: "#d97706",
+    border: "border-amber-800/60",
+    ringColor: "#f59e0b",
   };
 
   if (score >= 90) {
     level = "Review Ready";
     levelColor = {
-      badgeBg: "bg-green-50",
-      badgeText: "text-green-700",
-      dotBg: "bg-green-500",
-      border: "border-green-200/60",
-      ringColor: "#16a34a",
+      badgeBg: "bg-emerald-950/60",
+      badgeText: "text-emerald-400",
+      dotBg: "bg-emerald-500",
+      border: "border-emerald-800/60",
+      ringColor: "#10b981",
     };
   } else if (score >= 75) {
     level = "Good — Minor Gaps";
     levelColor = {
-      badgeBg: "bg-blue-50",
-      badgeText: "text-blue-700",
-      dotBg: "bg-blue-600",
-      border: "border-blue-200/60",
-      ringColor: "#2563eb",
+      badgeBg: "bg-blue-950/60",
+      badgeText: "text-blue-400",
+      dotBg: "bg-blue-500",
+      border: "border-blue-800/60",
+      ringColor: "#3b82f6",
     };
   } else if (score >= 50) {
     level = "Needs Attention";
     levelColor = {
-      badgeBg: "bg-amber-50",
-      badgeText: "text-amber-700",
+      badgeBg: "bg-amber-950/60",
+      badgeText: "text-amber-400",
       dotBg: "bg-amber-500",
-      border: "border-amber-200/60",
-      ringColor: "#d97706",
+      border: "border-amber-800/60",
+      ringColor: "#f59e0b",
     };
   } else {
     level = "High Attention";
     levelColor = {
-      badgeBg: "bg-red-50",
-      badgeText: "text-red-700",
-      dotBg: "bg-red-600",
-      border: "border-red-200/60",
-      ringColor: "#dc2626",
+      badgeBg: "bg-red-950/60",
+      badgeText: "text-red-400",
+      dotBg: "bg-red-500",
+      border: "border-red-800/60",
+      ringColor: "#ef4444",
     };
   }
 
-  // Generate dynamic checklist
+  // Dynamic checklist
   const checks: ReadinessCheck[] = [
     {
       id: "client-id",
@@ -377,7 +379,7 @@ export function calculateReadiness(
         consistencyResult.status === "Consistent"
           ? "Invoice & contract details consistent"
           : consistencyResult.status === "Minor Mismatch"
-          ? "Minor wording mismatch in supporting records"
+          ? "Minor wording difference in supporting records"
           : consistencyResult.status === "Significant Mismatch"
           ? "Significant mismatch between payment & invoice"
           : "Consistency check pending documents",
@@ -435,7 +437,7 @@ export function calculateReadiness(
     signals.push({
       id: "sig-consistency-pass",
       label: "Record alignment verified",
-      detail: "Transaction details agree with the attached invoice and contract metadata.",
+      detail: "Transaction details agree with the attached invoice and contract records.",
       level: "positive",
     });
   } else if (consistencyResult.status === "Minor Mismatch") {
@@ -497,22 +499,41 @@ export function calculateReadiness(
 
   let pCount = 1;
 
-  // If there is a consistency mismatch, prioritize it!
+  // If there is a consistency mismatch, prioritize it as #1!
   if (consistencyResult.mismatchCount > 0) {
-    const firstMismatch = consistencyResult.checks.find((c) => c.status === "mismatch");
+    const amountMismatch = consistencyResult.checks.find((c) => c.id === "payment-amount" && c.status === "mismatch");
+    if (amountMismatch) {
+      prioritizedActions.push({
+        priority: pCount++,
+        title: "Resolve invoice amount mismatch",
+        detail: "The requested payment amount differs from the invoice amount. Review the invoice before relying on it as supporting evidence.",
+        actionType: "consistency",
+      });
+    } else {
+      const firstMismatch = consistencyResult.checks.find((c) => c.status === "mismatch");
+      prioritizedActions.push({
+        priority: pCount++,
+        title: `Align ${firstMismatch?.fieldName || "inconsistent fields"} between payment and invoice`,
+        detail: firstMismatch?.explanation || "Ensure payment details agree with attached document figures.",
+        actionType: "consistency",
+      });
+    }
+  }
+
+  if (!hasSOW) {
     prioritizedActions.push({
       priority: pCount++,
-      title: `Align ${firstMismatch?.fieldName || "inconsistent fields"} between payment and invoice`,
-      detail: firstMismatch?.explanation || "Ensure payment details agree with attached document figures.",
-      actionType: "consistency",
+      title: "Upload signed SOW / contract",
+      detail: "Having a signed SOW or contract substantiates the agreed deliverable scope and payment schedule.",
+      actionType: "docs",
     });
   }
 
-  if (!hasInvoice || !hasSOW) {
+  if (!hasInvoice) {
     prioritizedActions.push({
       priority: pCount++,
-      title: "Upload invoice and signed SOW/contract",
-      detail: "Having formal signed agreements ready substantiates the legitimacy of the payment terms.",
+      title: "Upload formal invoice",
+      detail: "An itemized tax invoice confirms the exact payable figure and client entity details.",
       actionType: "docs",
     });
   }
@@ -530,7 +551,7 @@ export function calculateReadiness(
     prioritizedActions.push({
       priority: pCount++,
       title: "Keep client communication and proof-of-work records available",
-      detail: "Maintain email threads, chat approvals, or deliverable links for quick turnaround if asked.",
+      detail: "Maintain email confirmations, deliverable links, or milestone approvals for rapid verification.",
       actionType: "docs",
     });
   }
@@ -539,7 +560,7 @@ export function calculateReadiness(
     prioritizedActions.push({
       priority: pCount++,
       title: "Record client finance contact email",
-      detail: "Having verified corporate contact information accelerates verification if inquiries arise.",
+      detail: "Verified corporate contact information provides clear contact points if inquiries arise.",
       actionType: "info",
     });
   }
@@ -562,7 +583,7 @@ export function calculateReadiness(
 
   if (consistencyResult.status === "Significant Mismatch") {
     explanationParts.push(
-      `A notable mismatch was detected between the payment details and supporting document records. Resolving this discrepancy will significantly reduce verification delays.`
+      `A critical mismatch was detected between the payment details and supporting document records. Resolving this discrepancy will significantly reduce verification delays.`
     );
   } else if (consistencyResult.status === "Minor Mismatch") {
     explanationParts.push(
@@ -576,7 +597,7 @@ export function calculateReadiness(
 
   if (docNames.length === 4) {
     explanationParts.push(
-      `Documentation is comprehensive with all supporting records attached, providing high confidence for review preparation.`
+      `Documentation is comprehensive with all 4 supporting records attached, providing high confidence for review preparation.`
     );
   } else if (docNames.length > 0) {
     const missingDocs: string[] = [];
@@ -585,7 +606,7 @@ export function calculateReadiness(
     if (!hasComm) missingDocs.push("client communication");
     if (!hasProofOfWork) missingDocs.push("proof-of-work");
     explanationParts.push(
-      `The current documentation is partially ready (${docNames.join(", ")} attached), while ${missingDocs.join(" and ")} remain unattached.`
+      `Current documentation is partially ready (${docNames.join(", ")} attached), while ${missingDocs.join(" and ")} remain unattached.`
     );
   } else {
     explanationParts.push(

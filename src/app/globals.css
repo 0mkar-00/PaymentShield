@@ -1,15 +1,42 @@
 @import "tailwindcss";
 
 :root {
+  /* Default: Dark Theme (Fintech Charcoal & Emerald) */
+  --background: #090d16;
+  --foreground: #f8fafc;
+  --card: #0e1626;
+  --card-foreground: #f8fafc;
+  --card-elevated: #131d31;
+  --card-subtle: #0b1220;
+  --border: #1a2438;
+  --border-muted: #141d2e;
+  --muted: #111a2d;
+  --muted-foreground: #94a3b8;
+  --primary: #10b981;
+  --primary-foreground: #022c22;
+  --primary-hover: #059669;
+  --accent-blue: #3b82f6;
+  --green: #10b981;
+  --amber: #f59e0b;
+  --red: #ef4444;
+}
+
+html.light,
+body.light {
   --background: #f8fafc;
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
+  --card-elevated: #f1f5f9;
+  --card-subtle: #f8fafc;
   --border: #e2e8f0;
+  --border-muted: #edf2f7;
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
-  --primary: #1e40af;
+  --primary: #059669;
   --primary-foreground: #ffffff;
+  --primary-hover: #047857;
+  --accent-blue: #2563eb;
   --green: #16a34a;
   --amber: #d97706;
   --red: #dc2626;
@@ -23,7 +50,7 @@
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -43,4 +70,23 @@ html {
 :focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+/* Custom scrollbars for fintech dark look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.35);
 }
